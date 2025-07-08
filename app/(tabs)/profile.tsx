@@ -51,7 +51,7 @@ const Profile = () => {
   const showLogoutAlet = () => {
     Alert.alert(
       "Çıkış Yap",
-      "Çıkıs yapmak istediğinizden emin misiniz?",
+      "Çıkış yapmak istediğinizden emin misiniz?",
       [
         {
           text: "Hayır",
