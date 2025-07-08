@@ -7,12 +7,12 @@ import ModalWrapper from '@/components/ModalWrapper'
 import Typo from '@/components/Typo'
 import { colors, spacingX, spacingY } from '@/constants/theme'
 import { useAuth } from '@/contexts/authContext'
-import { updateUser } from '@/services/userService'
+import { createOrUpdateWallet, deleteWallet } from '@/services/walletService'
 import { WalletType } from '@/types'
 import { scale, verticalScale } from '@/utils/styling'
-import * as ImagePicker from 'expo-image-picker'
-import { useRouter } from 'expo-router'
-import React, { useState } from 'react'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import * as Icons from "phosphor-react-native"
+import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
 
 const WalletModal = () => {
@@ -24,44 +24,73 @@ const WalletModal = () => {
     const [loading, setLoading] = useState(false)
     const router = useRouter()
 
+    const oldWallet: { name: string, image: string, id: string } = useLocalSearchParams()
 
+    useEffect(() => {
+        if (oldWallet?.id) {
+            setWallet({
+                name: oldWallet.name || "",
+                image: oldWallet.image || null
+            })
+        }
+    }, [])
 
     const onSubmit = async () => {
         let { name, image } = wallet;
-        if (!name.trim()) {
+        if (!name.trim() || !image) {
             Alert.alert("Dikkat", "Lütfen boş alanları doldurunuz.");
             return;
         }
+        const data: WalletType = {
+            name,
+            image,
+            uid: user?.uid,
+        }
+        if (oldWallet?.id) data.id = oldWallet.id; // if we are updating, we need to set the id
         setLoading(true)
-        const res = await updateUser(user?.uid as string, wallet)
+        const res = await createOrUpdateWallet(data)
         setLoading(false)
+        // console.log("Wallet creation response: ", res);
         if (res.success) {
-            updateUserData(user?.uid as string)
+
             router.back()
         } else {
             Alert.alert("Dikkat", res.msg)
         }
 
     }
-
-    const onPickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            // allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.5,
-        });
-
-
-        if (!result.canceled) {
-            setWallet({ ...wallet, image: result.assets[0] });
+    const onDelete = async () => {
+        if (!oldWallet?.id) return;
+        setLoading(true)
+        const res = await deleteWallet(oldWallet.id);
+        setLoading(false)
+        if (res.success) {
+            router.back();
+    }else{
+            Alert.alert("Dikkat", res.msg || "Cüzdan silinirken bir hata oluştu.")
         }
+    }
+    const showDeleteAlert = () => {
+        Alert.alert("Dikkat", "Cüzdanı silmek istediğinize emin misiniz?",
+            [
+                {
+                    text: "Hayır",
+                    onPress: () => console.log("Cancel Pressed"),
+                    style: "cancel",
+                },
+                {
+                    text: "Evet",
+                    onPress: () => onDelete(),
+                    style: "destructive",
+                }
+            ]
+        )
     }
     return (
         <ModalWrapper>
             <View style={styles.container}>
                 <Header
-                    title="Cüzdan Ekle" leftIcon={<BackButton />}
+                    title={oldWallet?.id ? "Cüzdan Güncelle" : "Cüzdan Ekle"} leftIcon={<BackButton />}
                     style={{ marginBottom: spacingY._10 }}
                 />
                 {/* Form */}
@@ -77,11 +106,11 @@ const WalletModal = () => {
                     <View style={styles.inputContainer}>
                         <Typo color={colors.neutral200}>Cüzdan İkonu</Typo>
                         {/* resim inputu */}
-                        <ImageUpload 
-                        file={wallet.image} 
-                        onSelect={file => setWallet({ ...wallet, image: file })} 
-                        onClear={() => setWallet({ ...wallet, image: null })}
-                        placeholder='Resim yükle' />
+                        <ImageUpload
+                            file={wallet.image}
+                            onSelect={file => setWallet({ ...wallet, image: file })}
+                            onClear={() => setWallet({ ...wallet, image: null })}
+                            placeholder='Resim yükle' />
                     </View>
                 </ScrollView>
                 <View style={styles.footer}>
@@ -90,8 +119,17 @@ const WalletModal = () => {
 
 
             <View style={styles.footer}>
+                {oldWallet?.id && !loading && (
+                    <Button style={{ backgroundColor: colors.rose, paddingHorizontal: spacingX._15 }} onPress={showDeleteAlert} >
+                        <Icons.TrashIcon
+                            weight='bold'
+                            color={colors.white}
+                            size={verticalScale(24)} />
+                    </Button>
+                )}
+
                 <Button onPress={onSubmit} loading={loading} style={{ flex: 1 }} >
-                    <Typo color={colors.black} fontWeight={"700"} size={18}>Cüzdan Ekle</Typo>
+                    <Typo color={colors.black} fontWeight={"700"} size={18}>{oldWallet?.id ? "Cüzdanı Güncelle" : "Cüzdan Ekle"}</Typo>
                 </Button>
             </View>
         </ModalWrapper>

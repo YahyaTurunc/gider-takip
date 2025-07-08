@@ -1,17 +1,30 @@
+import Loading from '@/components/Loading'
 import ScreenWrapper from '@/components/ScreenWrapper'
 import Typo from '@/components/Typo'
+import WalletListItem from '@/components/WalletListItem'
 import { colors, radius, spacingX, spacingY } from '@/constants/theme'
+import { useAuth } from '@/contexts/authContext'
+import useFetchData from '@/hooks/useFetchData'
+import { WalletType } from '@/types'
 import { verticalScale } from '@/utils/styling'
 import { useRouter } from 'expo-router'
+import { orderBy, where } from 'firebase/firestore'
 import * as Icons from "phosphor-react-native"
 import React from 'react'
-import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native'
 
 const Wallet = () => {
   const router = useRouter();
-  const getTotalBalance = () => {
-    // This function should return the total balance from the user's wallet.
-    return 4235; // Example balance
+  const { user } = useAuth();
+  const { data: wallets, error, loading } = useFetchData<WalletType>("wallets", [
+    where("uid", "==", user?.uid),
+    orderBy("created", "desc")
+  ])
+  const getTotalBalance = (): number => {
+    return wallets.reduce((total, item) => {
+      total = total + (item.amount || 0);
+      return total;
+    }, 0);
   }
   return (
     <ScreenWrapper style={{ backgroundColor: colors.black }}>
@@ -19,7 +32,7 @@ const Wallet = () => {
         {/* bakiye */}
         <View style={styles.balanceView}>
           <View style={{ alignItems: 'center' }}>
-            <Typo size={45} fontWeight={"500"}>${getTotalBalance().toFixed(2)}</Typo>
+            <Typo size={45} fontWeight={"500"}>{getTotalBalance()?.toFixed(2)}₺</Typo>
             <Typo size={17} color={colors.neutral300}>Toplam Bakiye</Typo>
           </View>
         </View>
@@ -33,7 +46,14 @@ const Wallet = () => {
             </TouchableOpacity>
           </View>
           {/* cüzdan */}
-
+          {loading && <Loading />}
+          <FlatList
+            data={wallets}
+            renderItem={({ item, index }) => {
+              return <WalletListItem item={item} index={index} router={router} />
+            }}
+            contentContainerStyle={styles.listStyle}
+          />
         </View>
       </View>
     </ScreenWrapper>
