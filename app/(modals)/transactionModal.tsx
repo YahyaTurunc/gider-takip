@@ -9,14 +9,14 @@ import { expenseCategories, transactionTypes } from '@/constants/data'
 import { colors, radius, spacingX, spacingY } from '@/constants/theme'
 import { useAuth } from '@/contexts/authContext'
 import useFetchData from '@/hooks/useFetchData'
-import { deleteWallet } from '@/services/walletService'
+import { createOrUpdateTransaction, deleteTransaction } from '@/services/transactionService'
 import { TransactionType, WalletType } from '@/types'
 import { scale, verticalScale } from '@/utils/styling'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { orderBy, where } from 'firebase/firestore'
 import * as Icons from "phosphor-react-native"
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { Dropdown } from 'react-native-element-dropdown'
 const TransactionModal = () => {
@@ -33,11 +33,22 @@ const TransactionModal = () => {
   const [loading, setLoading] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const router = useRouter()
-  const oldTransaction: { name: string, image: string, id: string } = useLocalSearchParams()
   const { data: wallets, error: walletsError, loading: walletsLoading } = useFetchData<WalletType>("wallets", [
     where("uid", "==", user?.uid),
     orderBy("created", "desc")
   ])
+  type paramType = {
+    id?: string
+    type?: string
+    amount?: string
+    category?: string
+    date?: string
+    description?: string
+    image?: any
+    uid?: string
+    walletId?: string
+  }
+  const oldTransaction: paramType = useLocalSearchParams()
 
   const onDateChange = (event: any, selectedDate: any) => {
     const currentDate = selectedDate || transaction.date;
@@ -45,17 +56,23 @@ const TransactionModal = () => {
     setShowDatePicker(Platform.OS === 'ios' ? true : false); // Keep date picker open on iOS
   }
 
-  // useEffect(() => {
-  //     if (oldTransaction?.id) {
-  //         setTransaction({
-  //             name: oldTransaction.name || "",
-  //             image: oldTransaction.image || null
-  //         })
-  //     }
-  // }, [])
+  useEffect(() => {
+    if (oldTransaction?.id) {
+      setTransaction({
+        type: oldTransaction.type || "expense",
+        amount: Number(oldTransaction.amount),
+        description: oldTransaction.description || "",
+        category: oldTransaction.category || "",
+        date: oldTransaction.date ? new Date(oldTransaction.date) : new Date(),
+        walletId: oldTransaction.walletId || "",
+        image: oldTransaction.image
+      })
+    }
+  }, [])
 
   const onSubmit = async () => {
     const { type, amount, description, category, date, walletId, image } = transaction;
+
     if (!amount || !walletId || !date || (type === "expense" && !category)) {
       Alert.alert("Dikkat", "Lütfen gerekli alanları doldurunuz.");
       return;
@@ -68,15 +85,28 @@ const TransactionModal = () => {
       date,
       description,
       walletId,
-      image,
+      image: image ? image : null,
       uid: user?.uid
     }
-    console.log("transactionData: ", transactionData);
+
+    if (oldTransaction?.id) transactionData.id = oldTransaction.id
+    setLoading(true)
+    const res = await createOrUpdateTransaction(transactionData);
+    setLoading(false)
+    // console.log("Wallet creation response: ", res);
+    if (res.success) {
+      router.back()
+    } else {
+      Alert.alert("Dikkat", res.msg)
+    }
   }
   const onDelete = async () => {
     if (!oldTransaction?.id) return;
     setLoading(true)
-    const res = await deleteWallet(oldTransaction.id);
+    const res = await deleteTransaction(
+      oldTransaction.id,
+      oldTransaction.walletId
+    );
     setLoading(false)
     if (res.success) {
       router.back();
@@ -85,7 +115,7 @@ const TransactionModal = () => {
     }
   }
   const showDeleteAlert = () => {
-    Alert.alert("Dikkat", "Cüzdanı silmek istediğinize emin misiniz?",
+    Alert.alert("Dikkat", "İşlemi silmek istediğinize emin misiniz?",
       [
         {
           text: "Hayır",
