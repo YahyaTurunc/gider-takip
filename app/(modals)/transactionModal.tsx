@@ -105,7 +105,7 @@ const TransactionModal = () => {
     setLoading(true)
     const res = await deleteTransaction(
       oldTransaction.id,
-      oldTransaction.walletId
+      oldTransaction.walletId ?? ""
     );
     setLoading(false)
     if (res.success) {
